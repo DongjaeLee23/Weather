@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Weather App</title>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+    </head>
+    <body>
+    <h1>Weather App</h1>
+
+    <form method="POST" autocomplete="off">
+        <label for="city">City:</label>
+        <input type="hidden" id="lat" name="lat">
+        <input type="hidden" id="lon" name="lon">
+        <div class="autocomplete-wrapper" style="position: relative; width: 300px;">
+            <input type="text" id="city" name="city" required>
+            <div id="suggestions"></div>
+        </div>
+
+        <label for="units">Units:</label>
+        <select name="units" id="units">
+            <option value="metric">Metric (°C)</option>
+            <option value="imperial">Imperial (°F)</option>
+        </select>
+
+        <button type="submit">Get Weather</button>
+    </form>
+
+    {% if weather %}
+        {% if weather.weather %}
+            <div class="weather-card">
+                <h2>Weather in {{ weather.name }}</h2>
+                <p>{{ weather.weather[0].description }}</p>
+                <p>Temperature: {{ weather.main.temp }}°</p>
+                <p>Humidity: {{ weather.main.humidity }}%</p>
+                <p>Wind Speed: {{ weather.wind.speed }} m/s</p>
+                <img src="http://openweathermap.org/img/wn/{{ weather.weather[0].icon }}@2x.png" alt="Weather Icon">
+            </div>
+        {% else %}
+            <p style="color:red;">Invalid weather data received.</p>
+        {% endif %}
+    {% endif %}
+
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+
+    <script>
+        const cityInput = document.getElementById("city");
+        const latInput = document.getElementById("lat");
+        const lonInput = document.getElementById("lon");
+        const suggestionsDiv = document.getElementById("suggestions");
+
+        let debounceTimeout;
+
+        cityInput.addEventListener("input", function() {
+            const query = this.value.trim();
+            suggestionsDiv.innerHTML = "";
+            latInput.value = "";
+            lonInput.value = "";
+
+            if (query.length === 0) return;
+
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                fetch(`/autocomplete?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        data.forEach(city => {
+                            const div = document.createElement("div");
+                            div.textContent = city.label;
+                            div.style.padding = "5px";
+                            div.style.cursor = "pointer";
+
+                            div.addEventListener("click", () => {
+                                cityInput.value = city.label;
+                                latInput.value = city.lat;
+                                lonInput.value = city.lon;
+                                suggestionsDiv.innerHTML = "";
+                            });
+
+                            suggestionsDiv.appendChild(div);
+                        });
+                    });
+            }, 300); // 300ms debounce
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener("click", function(e) {
+            if (e.target !== cityInput) {
+                suggestionsDiv.innerHTML = "";
+            }
+        });
+    </script>
+    </body>
+</html>
