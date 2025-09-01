@@ -1,95 +1,179 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Weather App</title>
-        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
-    </head>
-    <body>
-    <h1>Weather App</h1>
+<head>
+    <title>Weather App</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<h1>Weather App</h1>
 
-    <form method="POST" autocomplete="off">
-        <label for="city">City:</label>
-        <input type="hidden" id="lat" name="lat">
-        <input type="hidden" id="lon" name="lon">
-        <div class="autocomplete-wrapper" style="position: relative; width: 300px;">
-            <input type="text" id="city" name="city" required>
-            <div id="suggestions"></div>
-        </div>
+<form id="weather-form" autocomplete="off">
+    <label for="city">City:</label>
+    <input type="hidden" id="lat" name="lat">
+    <input type="hidden" id="lon" name="lon">
+    <div class="autocomplete-wrapper" style="position: relative; width: 300px;">
+        <input type="text" id="city" name="city" required>
+        <div id="suggestions"></div>
+    </div>
 
-        <label for="units">Units:</label>
-        <select name="units" id="units">
-            <option value="metric">Metric (°C)</option>
-            <option value="imperial">Imperial (°F)</option>
-        </select>
+    <label for="units">Units:</label>
+    <select name="units" id="units">
+        <option value="metric">Metric (°C)</option>
+        <option value="imperial">Imperial (°F)</option>
+    </select>
 
-        <button type="submit">Get Weather</button>
-    </form>
+    <button type="submit">Get Weather</button>
+</form>
 
-    {% if weather %}
-        {% if weather.weather %}
-            <div class="weather-card">
-                <h2>Weather in {{ weather.name }}</h2>
-                <p>{{ weather.weather[0].description }}</p>
-                <p>Temperature: {{ weather.main.temp }}°</p>
-                <p>Humidity: {{ weather.main.humidity }}%</p>
-                <p>Wind Speed: {{ weather.wind.speed }} m/s</p>
-                <img src="http://openweathermap.org/img/wn/{{ weather.weather[0].icon }}@2x.png" alt="Weather Icon">
-            </div>
-        {% else %}
-            <p style="color:red;">Invalid weather data received.</p>
-        {% endif %}
-    {% endif %}
+<div id="weather-container">
+    <div id="current"></div>
+    <div id="forecast"></div>
+    <p id="error-msg" style="color:red;"></p>
+</div>
 
-    {% if error %}
-        <p style="color:red;">{{ error }}</p>
-    {% endif %}
+<script>
+const cityInput = document.getElementById("city");
+const latInput = document.getElementById("lat");
+const lonInput = document.getElementById("lon");
+const suggestionsDiv = document.getElementById("suggestions");
+const form = document.getElementById("weather-form");
+let debounceTimeout;
 
-    <script>
-        const cityInput = document.getElementById("city");
-        const latInput = document.getElementById("lat");
-        const lonInput = document.getElementById("lon");
-        const suggestionsDiv = document.getElementById("suggestions");
+// --- Fetch weather and render ---
+async function getWeather(lat, lon) {
+    if (!lat || !lon) return;
 
-        let debounceTimeout;
+    const units = document.getElementById("units").value;
+    const tempUnit = units === "imperial" ? "°F" : "°C";
+    const windUnit = units === "imperial" ? "mph" : "kph";
 
-        cityInput.addEventListener("input", function() {
-            const query = this.value.trim();
-            suggestionsDiv.innerHTML = "";
-            latInput.value = "";
-            lonInput.value = "";
+    try {
+        const response = await fetch(`/weather?lat=${lat}&lon=${lon}&units=${units}`);
+        const data = await response.json();
 
-            if (query.length === 0) return;
+        if (data.error) {
+            document.getElementById("error-msg").textContent = data.error;
+            document.getElementById("current").innerHTML = "";
+            document.getElementById("forecast").innerHTML = "";
+            return;
+        }
 
-            clearTimeout(debounceTimeout);
-            debounceTimeout = setTimeout(() => {
-                fetch(`/autocomplete?q=${encodeURIComponent(query)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        data.forEach(city => {
-                            const div = document.createElement("div");
-                            div.textContent = city.label;
-                            div.style.padding = "5px";
-                            div.style.cursor = "pointer";
+        document.getElementById("error-msg").textContent = "";
 
-                            div.addEventListener("click", () => {
-                                cityInput.value = city.label;
-                                latInput.value = city.lat;
-                                lonInput.value = city.lon;
-                                suggestionsDiv.innerHTML = "";
-                            });
+        // --- Current Weather ---
+        const current = data.current;
+        const location = `${data.location.name}, ${data.location.region}, ${data.location.country}`;
+        const temp = units === "imperial" ? current.temp_f : current.temp_c;
 
-                            suggestionsDiv.appendChild(div);
-                        });
+        document.getElementById("current").innerHTML = `
+            <h2>Weather in<br>${location}</h2>
+            <p>${temp}${tempUnit} - ${current.condition.text}</p>
+            <p>Humidity: ${current.humidity}%</p>
+            <p>Wind: ${units === "imperial" ? current.wind_mph : current.wind_kph} ${windUnit}</p>
+            <img src="https:${current.condition.icon}" alt="Weather Icon">
+        `;
+
+        // --- 7-Day Forecast ---
+        let forecastHTML = "<h2>7-Day Forecast</h2><div class='forecast-grid'>";
+        data.forecast.forecastday.forEach(day => {
+            const date = new Date(day.date);
+            const dayTemp = units === "imperial" ? day.day.avgtemp_f : day.day.avgtemp_c;
+            forecastHTML += `
+                <div class="forecast-day">
+                    <h3>${date.toDateString()}</h3>
+                    <p>Avg Temp: ${dayTemp}${tempUnit}</p>
+                    <p>${day.day.condition.text}</p>
+                    <img src="https:${day.day.condition.icon}" alt="Weather Icon">
+                </div>
+            `;
+        });
+        forecastHTML += "</div>";
+        document.getElementById("forecast").innerHTML = forecastHTML;
+
+    } catch (err) {
+        document.getElementById("error-msg").textContent = "Failed to fetch weather data.";
+        document.getElementById("current").innerHTML = "";
+        document.getElementById("forecast").innerHTML = "";
+    }
+}
+
+// --- Autocomplete ---
+cityInput.addEventListener("input", function () {
+    const query = this.value.trim();
+    suggestionsDiv.innerHTML = "";
+    latInput.value = "";
+    lonInput.value = "";
+
+    if (!query) return;
+
+    clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+        fetch(`/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                data.forEach(city => {
+                    const div = document.createElement("div");
+                    div.textContent = city.label;
+                    div.style.padding = "5px";
+                    div.style.cursor = "pointer";
+
+                    div.addEventListener("click", () => {
+                        cityInput.value = city.label;
+                        latInput.value = city.lat;
+                        lonInput.value = city.lon;
+                        suggestionsDiv.innerHTML = "";
                     });
-            }, 300); // 300ms debounce
-        });
 
-        // Hide suggestions when clicking outside
-        document.addEventListener("click", function(e) {
-            if (e.target !== cityInput) {
-                suggestionsDiv.innerHTML = "";
-            }
-        });
-    </script>
-    </body>
-</html>
+                    suggestionsDiv.appendChild(div);
+                });
+            });
+    }, 300);
+});
+
+document.addEventListener("click", function (e) {
+    if (e.target !== cityInput) suggestionsDiv.innerHTML = "";
+});
+
+// --- Handle form submit ---
+form.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    // If lat/lon already set (clicked suggestion)
+    if (latInput.value && lonInput.value) {
+        getWeather(latInput.value, lonInput.value);
+    } else {
+        // Resolve city via autocomplete API
+        const query = cityInput.value.trim();
+        if (!query) return;
+
+        fetch(`/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.length > 0) {
+                    const city = data[0];  // first match
+                    latInput.value = city.lat;
+                    lonInput.value = city.lon;
+                    getWeather(city.lat, city.lon);
+                } else {
+                    document.getElementById("error-msg").textContent = "City not found.";
+                }
+            });
+    }
+});
+
+// --- Geolocation on page load ---
+window.onload = function () {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                latInput.value = lat;
+                lonInput.value = lon;
+                getWeather(lat, lon);
+            },
+            err => console.log("Geolocation denied:", err)
+        );
+    }
+};
+</script>
