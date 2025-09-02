@@ -25,8 +25,9 @@
     <button type="submit">Get Weather</button>
 </form>
 
-<div id="weather-container">
+<div id="weather-container" class="weather-wrapper">
     <div id="current"></div>
+    <div id="hourly-forecast" class="hourly-scroll"></div>
     <div id="forecast"></div>
     <p id="error-msg" style="color:red;"></p>
 </div>
@@ -63,21 +64,52 @@ async function getWeather(lat, lon) {
         // --- Current Weather ---
         const current = data.current;
         const location = `${data.location.name}, ${data.location.region}, ${data.location.country}`;
-        const temp = units === "imperial" ? current.temp_f : current.temp_c;
+        const temp = current.temp;
 
+        // Merge today and tomorrow hours
+        const todayHours = data.forecast.forecastday[0].hour;
+        const tomorrowHours = data.forecast.forecastday[1]?.hour || [];
+        const allHours = todayHours.concat(tomorrowHours);
+
+        // Take next 12 hours
+        const nowHour = new Date().getHours();
+        const next12Hours = allHours.slice(nowHour, nowHour + 12);
+
+        // Build hourly HTML
+        let hourlyHTML = `<div class="hourly-scroll">`;
+        next12Hours.forEach(hour => {
+            const time = new Date(hour.time).toLocaleTimeString([], { hour: "numeric" });
+            const tempHour = units === "imperial" ? hour.temp_f : hour.temp_c;
+            const icon = `https:${hour.condition.icon}`;
+
+            hourlyHTML += `
+                <div class="hour-card">
+                    <p>${time}</p>
+                    <img src="${icon}" alt="${hour.condition.text}">
+                    <p>${tempHour}°</p>
+                </div>
+            `;
+        });
+        hourlyHTML += `</div>`;
+
+        // Render current weather + hourly scroll
         document.getElementById("current").innerHTML = `
             <h2>Weather in<br>${location}</h2>
             <p>${temp}${tempUnit} - ${current.condition.text}</p>
             <p>Humidity: ${current.humidity}%</p>
             <p>Wind: ${units === "imperial" ? current.wind_mph : current.wind_kph} ${windUnit}</p>
-            <img src="https:${current.condition.icon}" alt="Weather Icon">
+            ${hourlyHTML}
         `;
+        // <img src="https:${current.condition.icon}" alt="Weather Icon">
+
+
+
 
         // --- 7-Day Forecast ---
         let forecastHTML = "<h2>7-Day Forecast</h2><div class='forecast-grid'>";
         data.forecast.forecastday.forEach(day => {
             const date = new Date(day.date);
-            const dayTemp = units === "imperial" ? day.day.avgtemp_f : day.day.avgtemp_c;
+            const dayTemp = day.day.avgtemp;
             forecastHTML += `
                 <div class="forecast-day">
                     <h3>${date.toDateString()}</h3>
@@ -91,11 +123,13 @@ async function getWeather(lat, lon) {
         document.getElementById("forecast").innerHTML = forecastHTML;
 
     } catch (err) {
+        console.log(err)
         document.getElementById("error-msg").textContent = "Failed to fetch weather data.";
         document.getElementById("current").innerHTML = "";
         document.getElementById("forecast").innerHTML = "";
     }
 }
+
 
 // --- Autocomplete ---
 cityInput.addEventListener("input", function () {

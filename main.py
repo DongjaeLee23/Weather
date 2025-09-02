@@ -32,7 +32,6 @@ def get_weather_data(lat, lon, units="metric"):
 
 
 def get_forecast_data(lat, lon, units="metric", days=7):
-    """Current + 7-day forecast using WeatherAPI."""
     try:
         response = requests.get("http://api.weatherapi.com/v1/forecast.json", params={
             "key": TOKEN,
@@ -44,17 +43,20 @@ def get_forecast_data(lat, lon, units="metric", days=7):
         response.raise_for_status()
         data = response.json()
 
-        # convert temps if units == "imperial"
+        # Normalize units
         if units == "imperial":
+            data["current"]["temp"] = data["current"]["temp_f"]
             for day in data["forecast"]["forecastday"]:
                 day["day"]["avgtemp"] = day["day"]["avgtemp_f"]
         else:
+            data["current"]["temp"] = data["current"]["temp_c"]
             for day in data["forecast"]["forecastday"]:
                 day["day"]["avgtemp"] = day["day"]["avgtemp_c"]
 
         return data
     except requests.exceptions.RequestException as e:
         return {"error": str(e)}
+
 
 
 def get_city_suggestions(query, limit=5):
