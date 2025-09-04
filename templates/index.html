@@ -19,7 +19,7 @@
     <label for="units">Units:</label>
     <select name="units" id="units">
         <option value="metric">Metric (°C)</option>
-        <option value="imperial">Imperial (°F)</option>
+        <option value="imperial" selected>Imperial (°F)</option>
     </select>
 
     <button type="submit">Get Weather</button>
@@ -44,7 +44,7 @@ let debounceTimeout;
 async function getWeather(lat, lon) {
     if (!lat || !lon) return;
 
-    const units = document.getElementById("units").value;
+    const units = document.getElementById("units")?.value || "imperial";
     const tempUnit = units === "imperial" ? "°F" : "°C";
     const windUnit = units === "imperial" ? "mph" : "kph";
 

@@ -1,4 +1,4 @@
-#!/Volumes/Extreme_SSD/personal_projects/weather-app/weather/bin/python3.11
+#!/Volumes/Extreme_SSD/personal_projects/weather-app/weather/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
